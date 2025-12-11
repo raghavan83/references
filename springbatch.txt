@@ -1,0 +1,121 @@
+You are an expert Spring Boot and Spring Batch architect with deep knowledge of SQL Server, AKS deployments, and enterprise batch processing. Generate a production‑grade Spring Batch application with the following requirements.
+
+1. FILE INPUT AND RECORD LAYOUT
+- **Format:** Fixed-length ASCII file.
+- **Structure:** Single file containing:
+  - Header record (first line).
+  - Multiple detail records (middle lines).
+  - Footer record (last line).
+- **Embedding rule:** Each detail line represents one Payment plus up to 90 embedded PaymentDetail segments within the same fixed-length line (no separate lines for details).
+- **Parsing:** Build a custom LineTokenizer or FieldSetMapper capable of:
+  - Extracting Payment fields from fixed positions.
+  - Iterating over 90 repeated detail segments (each with fixed offsets) to build PaymentDetail objects.
+  - Applying sign rules based on debit/credit indicator and signRule field per detail.
+- **Validation:** Validate header/footer:
+  - Header/footer must match expected record counts and totals (e.g., number of detail lines, optional checksum/amount total).
+  - If header/footer validation fails, the entire batch job must fail immediately (no partial commits).
+
+2. SPRING BATCH DESIGN
+- **Reader:** FlatFileItemReader configured for fixed-length parsing; use a PatternMatchingCompositeLineMapper for header/detail/footer or a custom delegate that routes lines by record type code at fixed position 1..N.
+- **Tokenizer/Mapper:**
+  - HeaderMapper extracts batch metadata (file date, sequence number, source system).
+  - DetailMapper parses Payment and up to 90 PaymentDetail segments using fixed ranges; ensure trimming, numeric parsing, and sign computation.
+  - FooterMapper extracts counts/totals needed for reconciliation.
+- **Processor:** ItemProcessor that:
+  - Applies business validations on Payment and PaymentDetail (required fields, range checks, amount sign).
+  - Aggregates amounts; enriches with header metadata; attaches batch identifier.
+- **Writer:** JPA‑based ItemWriter to persist Payment and PaymentDetail entities to SQL Server with cascading and batch optimizations (hibernate.jdbc.batch_size, order_inserts=true, order_updates=true).
+- **Job flow:**
+  - Step 1: Pre‑validation step to read header and footer, compute expected counts/totals, and store in JobExecutionContext.
+  - Step 2: Chunk‑oriented step for detail lines only, with fault‑tolerance:
+    - chunk-size configurable (e.g., 500–2,000).
+    - skip-limit set to 10 for detail record parse/validation errors; log and continue.
+    - retry policy configurable for transient DB errors.
+  - Step 3: Post‑validation step comparing actual processed counts/totals with footer; if mismatch, fail job.
+- **Fail‑fast rule:** If header/footer invalid, job must terminate with FAILED status before writing any data.
+- **Idempotency:** Ensure reprocessing safety via file sequence number + date uniqueness and a job instance key; prevent duplicate ingestion.
+
+3. CONCURRENCY AND PARTITIONING
+- **Partitioning:** Partition the detail processing step by file byte/line ranges (e.g., RangePartitioner or custom LineRangePartitioner) so partitions read disjoint segments of the same file.
+- **Multithreading:** Use a TaskExecutor (ThreadPoolTaskExecutor) for parallel partitions; ensure thread‑safe reader instances per partition (no shared state).
+- **Ordering guarantees:** If ordering is not required for business logic, partitions may process independently; otherwise, enforce ordering via sequence fields inside Payment.
+- **Throughput tuning:** Configure:
+  - chunk-size and concurrency (e.g., corePoolSize/maxPoolSize).
+  - Hibernate batch settings.
+  - fetch-size for readers.
+  - SQL Server JDBC properties for performance (sendStringParametersAsUnicode=false where appropriate).
+- **Consistency:** Each transaction must commit Payment with its N PaymentDetail rows atomically; use cascades and transactional boundaries per chunk.
+
+4. ERROR HANDLING AND OBSERVABILITY
+- **Skipping:** Allow up to 10 skipped detail records per job (configurable); beyond the limit, fail the job.
+- **Logging:** Structured logging (JSON) with MDC fields: jobId, fileName, partitionId, paymentId; log skipped records with reason and line number.
+- **Metrics:** Micrometer + Prometheus: processedCount, skippedCount, commitCount, rollbackCount, partitionLatency, read/write rates.
+- **Alerts:** On job failure or skip-limit exceeded, emit an application event; integrate with email/webhook as a placeholder.
+- **Audit:** Persist a BatchRun table recording file name, header/footer values, counts, start/end timestamps, status, and error summary.
+
+5. DATABASE AND JPA
+- **JPA:** Use Spring Data JPA with SQL Server; Payment is parent; PaymentDetail is child with @ManyToOne; cascading persist.
+- **Transactions:** Boundary per chunk; ensure FK integrity; index FK columns and business keys.
+- **Constraints:** Enforce uniqueness on payment business key (e.g., paymentReference + fileSequence + fileDate) to avoid duplicates; handle conflicts gracefully.
+
+6. DEPLOYMENT AND CONFIGURATION
+- **Packaging:** Spring Boot executable JAR; profiles: local, aks.
+- **Configuration externalization:** Use application‑{profile}.yaml; on AKS, mount ConfigMap for non‑secrets and Secret for DB credentials.
+- **Scheduling:** 
+  - Local: Spring Scheduler (fixed delay/cron) disabled by default; CLI run with JobParameters (file path, sequence).
+  - AKS: Kubernetes CronJob YAML orchestrating job runs; pass JobParameters via args/env; mount input files via PersistentVolumeClaim or object storage sync.
+- **Reliability:** Liveness/readiness probes; graceful shutdown for chunk completion; backoff for retries; resource limits/requests set.
+
+7. DELIVERABLES
+- **Codebase:** Complete Spring Boot + Spring Batch project with modular packages: config, job, reader, mapper, processor, writer, domain, repository, partitioner, validation, web (optional).
+- **Entities:** Payment and PaymentDetail JPA entities with schema migration scripts (Flyway/Liquibase).
+- **Batch configuration:** Job + steps + fault tolerance + partitioning + task executor.
+- **Reader/mappers:** Fixed‑length parsing utilities, header/footer validators, sign rules.
+- **Repositories:** Spring Data JPA repositories for Payment and PaymentDetail.
+- **Properties:** application.yaml (common), application-local.yaml, application-aks.yaml.
+- **Ops:** Kubernetes manifests (Deployment for on‑demand runs, CronJob for scheduled runs, ConfigMap, Secret, ServiceMonitor).
+- **Tests:** Unit tests for tokenizers/mappers, sign rules; integration tests for chunk processing, JPA persistence; concurrency tests; header/footer failure tests; skip-limit enforcement tests.
+- **Docs:** README with runbooks (local and AKS), performance tuning tips, and troubleshooting.
+
+8. EXAMPLE FIXED-LENGTH MAPPING (PLACEHOLDER — MAKE CONCRETE)
+- **Record type:** pos 1 (H/D/F).
+- **Header fields:** 
+  - fileDate: pos 2–9 (YYYYMMDD)
+  - sequenceNumber: pos 10–13
+  - sourceSystem: pos 14–33
+- **Detail payment fields:**
+  - paymentReference: pos 2–31
+  - accountNumber: pos 32–51
+  - currency: pos 52–54
+  - paymentDate: pos 55–62 (YYYYMMDD)
+  - totalDetailsCount: pos 63–64 (00–90)
+- **Detail segments (repeat up to 90):** each segment length N (e.g., 40 chars); for segment i:
+  - stubAmount: segment base + 1–12 (implied 2 decimals)
+  - debitOrCredit: segment base + 13 (D/C)
+  - signRule: segment base + 14–15 (rule code)
+  - description: segment base + 16–40
+- **Footer fields:**
+  - totalRecordCount: pos 2–11
+  - totalAmount: pos 12–27 (sum of signed stubAmount over all details)
+  - checksum: pos 28–35
+
+Make all positions and lengths configurable and documented.
+
+9. SIGN RULES (IMPLEMENTATION NOTES)
+- **Rule application:** Determine signed amount per detail using combination of debitOrCredit and signRule.
+- **Examples:**
+  - If debitOrCredit = 'D', sign = negative unless signRule overrides.
+  - If debitOrCredit = 'C', sign = positive unless signRule indicates reversal.
+- **Centralization:** Implement SignRuleService with unit tests; keep rules data‑driven.
+
+10. PERFORMANCE AND SAFETY
+- **Large files:** Support millions of detail lines; ensure memory efficiency (streaming, no full-file load).
+- **Tuning knobs:** chunk-size, concurrency, hibernate batch size, reader buffer size, partition count.
+- **Back-pressure:** Limit thread pool to avoid DB saturation; monitor connection pool (HikariCP).
+- **Idempotency and recovery:** On restart, skip already‑committed payments using business keys; enable job restartability.
+
+Produce:
+- Full Java code with configuration classes, entities, repositories, services, mappers, validators, and tests.
+- Application properties with sensible defaults and profile overrides.
+- Kubernetes YAML for AKS CronJob, Deployment, ConfigMap, Secret.
+- Flyway/Liquibase migration scripts for SQL Server schema.
