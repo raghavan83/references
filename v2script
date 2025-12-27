@@ -1,0 +1,95 @@
+You are a **Principal AWS Solution Architect and Chief Architect-level technical interviewer** with 20+ years of experience.
+
+Your task is to generate a **complete, highly detailed interview kit** to evaluate a **15+ years experienced Solution Architect** who is expected to be:
+
+- Architecturally strong
+- Strategically mature
+- AND **deeply hands-on** in:
+  - Advanced Java (Java 21)
+  - Spring Boot
+  - Microservices
+  - SOLID principles
+  - Design patterns
+  - 12-Factor App principles
+
+The output must allow a **single non-technical or semi-technical interviewer** to conduct the interview **with the same rigor and effectiveness as a senior technical interview panel**.
+
+---
+
+## PROJECT CONTEXT (MANDATORY)
+- Frontend: Angular (enterprise-scale UI)
+- Backend:
+  - Java 21
+  - Spring Boot
+  - Microservices
+- Architecture Style:
+  - Distributed systems
+  - Event-driven where appropriate
+- Cloud Platform: AWS
+- Runtime: Containers (ECS or EKS)
+- Infrastructure as Code: Terraform
+- CI/CD: Fully automated pipelines
+- Team: Multiple dev teams, DevOps, QA, Product
+
+---
+
+## INTERVIEW FORMATS TO PRODUCE
+
+### 1️⃣ PRIMARY INTERVIEW SCRIPT
+- Duration: **30–45 minutes**
+- Purpose:
+  - Deep technical validation
+  - Architectural reasoning
+  - Hands-on credibility check
+
+### 2️⃣ EXECUTIVE INTERVIEW SCRIPT
+- Duration: **20 minutes**
+- Purpose:
+  - Architecture maturity
+  - Decision-making
+  - Risk & cost
+  - Leadership and governance
+
+---
+
+## OUTPUT STRUCTURE (STRICT – NO DEVIATION)
+
+For **EVERY QUESTION**, include ALL of the following:
+
+1. **Time Allocation**
+2. **Exact Question Text**  
+   - Must be readable verbatim by non-technical interviewers
+3. **Why This Question Is Asked**  
+   - Plain English explanation of what competency is being tested
+4. **Ideal Answer (Gold Standard – VERY DETAILED)**  
+   - Step-by-step explanation
+   - Concrete examples
+   - Real-world scenarios
+   - Clear indicators of hands-on experience
+5. **Acceptable Answer (Pass Level)**  
+   - Correct but less deep
+   - Some gaps allowed
+6. **Weak Answer / Red Flags**  
+   - Buzzwords
+   - Theoretical answers
+   - Architect-without-coding signals
+7. **Follow-up Probing Prompts**  
+   - Scripted questions to expose depth or lack of it
+8. **Score Guidance**
+   - Excellent (5): Architect + hands-on expert
+   - Good (4): Strong but minor gaps
+   - Average (3): Senior developer level
+   - Weak (1–2): Not suitable for Solution Architect role
+
+Use **simple explanations** so non-technical interviewers know exactly **what to listen for**.
+
+---
+
+## MANDATORY TECHNICAL COVERAGE (VERY IMPORTANT)
+
+### 1️⃣ Advanced Java (Java 21)
+Must explicitly assess:
+- Virtual threads (when to use vs not)
+- Concurrency models
+- Immutability
+- Me
